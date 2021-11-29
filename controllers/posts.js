@@ -4,7 +4,9 @@ const User = require('../models/user')
 const jwt = require('jsonwebtoken')
 
 const getTokenFrom = request => {
+  console.log(request)
   const authorization = request.get('authorization')
+  console.log(authorization)
   if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
 		return authorization.substring(7)
 	}
@@ -20,15 +22,13 @@ postsRouter.get('/', async (request, response) => {
 
 postsRouter.post('/', async (request, response) => {
   const body = request.body
-
-	/* const token = getTokenFrom(request)
-	   const decodedToken = jwt.verify(token, process.env.SECRET)
-	   if (!token || !decodedToken.id) {
-		 return response.status(401).json({ error: 'token missing or invalid' })
-	   } */
+	const token = getTokenFrom(request)
+	const decodedToken = jwt.verify(token, process.env.SECRET)
+	if (!token || !decodedToken.id) {
+		return response.status(401).json({ error: 'token missing or invalid' })
+	}
 	
-  const user = await User.findById('6192ea4ee94985dbf668fb0a')
-
+  const user = await User.findById(decodedToken.id)
   const post = new Post({
     content: body.content,
     comments: body.comments,
@@ -36,11 +36,27 @@ postsRouter.post('/', async (request, response) => {
     user: user,
     likes: 0
   })
+  const savedPost = await post.save()
+
+  const updateUser = await User.findByIdAndUpdate(user.id, {$push: {posts: savedPost._id}})
+
+  response.json(savedPost)
+})
+
+postsRouter.put('/:id', async (request, response) => {
+  const body = request.body
+
+  const post = await Post.findByIdAndUpdate(request.params.id, {$push: {comments: body}})
 
   const savedPost = await post.save()
-  /* user.posts = user.posts.concat(savedPost._id)
-   * await user.save() */
+  response.json(savedPost.toJSON())  
+})
 
+postsRouter.put('/like/:id', async (request, response) => {
+  const body = request.body
+
+  const post = await Post.findByIdAndUpdate(request.params.id, {$inc: {likes: 1}})
+  const savedPost = await post.save()
   response.json(savedPost.toJSON())
 })
 
